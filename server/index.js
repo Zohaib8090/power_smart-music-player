@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const ytdl = require('ytdl-core');
+const ytdl = require('@distube/ytdl-core');
 const YouTube = require("youtube-sr").default;
 
 const app = express();
@@ -26,7 +26,7 @@ app.get('/search', async (req, res) => {
             author: v.channel.name,
             channelId: v.channel.id,
             duration: v.durationFormatted,
-            thumbnail: v.thumbnail.url,
+            thumbnail: v.thumbnail?.url || `https://i.ytimg.com/vi/${v.id}/mqdefault.jpg`,
             url: v.url
         }));
         res.json(results);
