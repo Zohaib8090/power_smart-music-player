@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "745439467196",
+        "project_id": "win-android-web",
+        "storage_bucket": "win-android-web.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:745439467196:android:c331b7e963827cfab4e2b9",
+                "android_client_info": {
+                    "package_name": "com.zohaib.powersmart"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDI_NgSU-a2J-olhIy35KPCPSom3reDgFY"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}
