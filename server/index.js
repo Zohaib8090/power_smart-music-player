@@ -24,6 +24,7 @@ app.get('/search', async (req, res) => {
             id: v.id,
             title: v.title,
             author: v.channel.name,
+            channelId: v.channel.id,
             duration: v.durationFormatted,
             thumbnail: v.thumbnail.url,
             url: v.url
