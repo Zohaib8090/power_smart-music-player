@@ -1,12 +1,10 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const YTDlpWrap = require('yt-dlp-wrap').default;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const YOUTUBE_API_KEY = 'AIzaSyAyWLs9wViOYKqNIoE_WumDb4qHjrKl914';
-const ytDlp = new YTDlpWrap();
 
 app.use(cors());
 
@@ -47,32 +45,17 @@ app.get('/search', async (req, res) => {
     }
 });
 
-// Audio URL Endpoint (using yt-dlp)
+// Audio URL Endpoint - Simplified for Web (returns error message)
 app.get('/audio', async (req, res) => {
     const videoId = req.query.id;
     if (!videoId) return res.status(400).send('Missing video ID');
 
-    try {
-        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-        // Get audio URL using yt-dlp
-        const info = await ytDlp.getVideoInfo(videoUrl);
-
-        // Find best audio format
-        const audioFormats = info.formats.filter(f => f.acodec !== 'none' && f.vcodec === 'none');
-        const bestAudio = audioFormats.sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
-
-        if (!bestAudio || !bestAudio.url) {
-            return res.status(404).send('No audio stream found');
-        }
-
-        // Return the direct URL
-        res.json({ url: bestAudio.url });
-
-    } catch (error) {
-        console.error('Audio Error:', error);
-        res.status(500).send('Error getting audio URL');
-    }
+    // For Web, audio extraction is complex due to YouTube restrictions
+    // Return a message suggesting to use Android/Windows app
+    res.status(501).json({
+        error: 'Audio playback on Web is not supported. Please use the Android or Windows app for full functionality.',
+        videoUrl: `https://www.youtube.com/watch?v=${videoId}`
+    });
 });
 
 app.listen(PORT, () => {
