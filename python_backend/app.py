@@ -23,9 +23,12 @@ def extract_audio():
         'quiet': True,
         'noplaylist': True,
         'extract_flat': False,
-        # Stealth options from the logs
+        # Stealth and Compatibility options
         'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'extractor_args': {'youtube': {'player_client': ['mweb']}},
+        'extractor_args': {'youtube': {'player_client': ['mweb', 'web']}},
+        # Solve Signature/n challenge (Requires JS runtime)
+        'remote_components': ['ejs:github'],
+        'js_runtimes': ['node'],
     }
 
     # Use cookies.txt if it exists (Netscape format)
