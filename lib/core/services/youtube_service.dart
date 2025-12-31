@@ -26,9 +26,9 @@ class YouTubeService {
     }
   }
 
-  // Production Backend URL (Render Python Extractor)
+  // Production Backend URL (Live Render Python Extractor)
   static const String _pythonBackendUrl =
-      "https://power-smart-python.onrender.com";
+      "https://web-backend-3wfv.onrender.com";
 
   Future<String?> getAudioUrl(String videoId) async {
     try {

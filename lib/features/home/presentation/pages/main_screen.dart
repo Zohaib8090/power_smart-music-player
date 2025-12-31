@@ -47,12 +47,14 @@ class _MainScreenState extends State<MainScreen> {
                       vertical: 12,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.9),
+                      color: Colors.black.withValues(alpha: 0.9),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white.withOpacity(0.2)),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.2),
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
