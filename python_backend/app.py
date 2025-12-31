@@ -24,6 +24,12 @@ def extract_audio():
         'noplaylist': True,
         'extract_flat': False,
     }
+
+    # Use cookies.txt if it exists (Netscape format)
+    cookie_file = os.path.join(os.path.dirname(__file__), 'cookies.txt')
+    if os.path.exists(cookie_file):
+        ydl_opts['cookiefile'] = cookie_file
+        print("Using cookies.txt for authentication")
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

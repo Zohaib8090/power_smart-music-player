@@ -31,21 +31,40 @@ class YouTubeService {
       "https://web-backend-3wfv.onrender.com";
 
   Future<String?> getAudioUrl(String videoId) async {
-    try {
-      final response = await http.get(
-        Uri.parse("$_pythonBackendUrl/extract?id=$videoId"),
-      );
+    int retryCount = 0;
+    const int maxRetries = 2;
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return data['stream_url'] as String?;
+    while (retryCount <= maxRetries) {
+      try {
+        final response = await http
+            .get(Uri.parse("$_pythonBackendUrl/extract?id=$videoId"))
+            .timeout(
+              const Duration(seconds: 40),
+            ); // Increased for Render cold start
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['stream_url'] != null) {
+            return data['stream_url'] as String;
+          }
+          throw Exception(
+            data['error'] ?? "Backend returned success but no URL",
+          );
+        }
+
+        throw Exception("Server responded with status: ${response.statusCode}");
+      } catch (e) {
+        retryCount++;
+        print("Extraction attempt $retryCount failed for $videoId: $e");
+
+        if (retryCount > maxRetries) {
+          return null; // Let the UI handle the failure
+        }
+        // Exponential backoff
+        await Future.delayed(Duration(seconds: 2 * retryCount));
       }
-
-      throw Exception("Failed to extract: ${response.statusCode}");
-    } catch (e) {
-      print("Error calling Python Backend for extraction: $e");
-      return null;
     }
+    return null;
   }
 
   // --- Native Implementation ---
