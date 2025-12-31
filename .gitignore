@@ -83,8 +83,12 @@ app.*.map.json
 /macos/Flutter/generated_plugin_registrant.swift
 
 # Firebase makefile
+# Firebase configuration
 firebase_options.dart
 /*.json
+!firebase.json
+!package.json
+!pubspec.yaml
 
 # Node modules (for backend)
 node_modules/

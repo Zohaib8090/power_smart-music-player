@@ -1,28 +1,50 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:io';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
 
 class YouTubeService {
-  final YoutubeExplode _yt = YoutubeExplode();
+  // Use a very standard Windows Chrome User-Agent
+  static const String browserUserAgent =
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-  // TODO: Replace with your Render deployed URL later
-  static const String _backendUrl = "http://localhost:3000";
+  late final YoutubeExplode _yt;
+
+  YouTubeService() {
+    _yt = YoutubeExplode();
+  }
+
+  // YouTube Data API v3 Key - for Windows
+  static const String _youtubeApiKey =
+      "AIzaSyAyWLs9wViOYKqNIoE_WumDb4qHjrKl914";
 
   Future<List<Video>> searchVideos(String query) async {
-    if (kIsWeb) {
-      return _searchWeb(query);
+    if (Platform.isWindows) {
+      return _searchWithApi(query);
     } else {
       return _searchNative(query);
     }
   }
 
+  // Production Backend URL (Render Python Extractor)
+  static const String _pythonBackendUrl =
+      "https://power-smart-python.onrender.com";
+
   Future<String?> getAudioUrl(String videoId) async {
-    if (kIsWeb) {
-      // For Web, return our server's stream URL directly
-      return "$_backendUrl/audio?id=$videoId";
-    } else {
-      return _getAudioNative(videoId);
+    try {
+      final response = await http.get(
+        Uri.parse("$_pythonBackendUrl/extract?id=$videoId"),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['stream_url'] as String?;
+      }
+
+      throw Exception("Failed to extract: ${response.statusCode}");
+    } catch (e) {
+      print("Error calling Python Backend for extraction: $e");
+      return null;
     }
   }
 
@@ -37,53 +59,41 @@ class YouTubeService {
     }
   }
 
-  Future<String?> _getAudioNative(String videoId) async {
-    try {
-      final manifest = await _yt.videos.streamsClient.getManifest(videoId);
-      final audioOnly = manifest.audioOnly;
-      if (audioOnly.isEmpty) return null;
-      return audioOnly.withHighestBitrate().url.toString();
-    } catch (e) {
-      print("Error getting audio URL (Native): $e");
-      return null;
-    }
-  }
-
-  // --- Web Implementation ---
-  Future<List<Video>> _searchWeb(String query) async {
+  // --- Windows API Implementation ---
+  Future<List<Video>> _searchWithApi(String query) async {
     try {
       final response = await http.get(
-        Uri.parse("$_backendUrl/search?q=$query"),
+        Uri.parse(
+          'https://www.googleapis.com/youtube/v3/search?part=snippet&q=$query&type=video&maxResults=10&key=$_youtubeApiKey',
+        ),
       );
-      if (response.statusCode == 200) {
-        final List<dynamic> data = json.decode(response.body);
 
-        // Map JSON back to Video objects
-        // Constructor likely: Video(id, title, author, channelId, uploadDate, uploadDateRaw, publishDate, description, duration, thumbnails, keywords, engagement, isLive)
-        // We will try to pass logical defaults or nulls.
-        return data
-            .map(
-              (json) => Video(
-                VideoId(json['id']),
-                json['title'],
-                json['author'],
-                ChannelId(''),
-                null, // uploadDate (DateTime?)
-                null, // uploadDateRaw (String?)
-                null, // publishDate (DateTime?)
-                '', // description (String?)
-                null, // duration (Duration?)
-                ThumbnailSet(json['thumbnail']),
-                [], // keywords (Iterable<String>)
-                Engagement(0, 0, 0),
-                false, // isLive
-              ),
-            )
-            .toList();
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final List items = data['items'] ?? [];
+
+        return items.map((item) {
+          final snippet = item['snippet'];
+          return Video(
+            VideoId(item['id']['videoId']),
+            snippet['title'],
+            snippet['channelTitle'],
+            ChannelId(snippet['channelId']),
+            null,
+            null,
+            null,
+            snippet['description'] ?? '',
+            null,
+            ThumbnailSet(item['id']['videoId']),
+            [],
+            Engagement(0, 0, 0),
+            false,
+          );
+        }).toList();
       }
       return [];
     } catch (e) {
-      print("Error searching YouTube (Web): $e");
+      print("Error searching YouTube (API): $e");
       return [];
     }
   }

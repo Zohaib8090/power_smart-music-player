@@ -32,31 +32,16 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _playVideo(yt.Video video) async {
     final audioHandler = GetIt.I<AudioHandler>();
 
-    // Show a loading snackbar
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Loading "${video.title}"...'),
-        duration: const Duration(seconds: 1),
-      ),
+    // No need to show loading snackbar anymore as the AudioHandler
+    // update will trigger the MiniPlayer/FullPlayer to show loading state.
+
+    // Cast to dynamic to call our custom playFromVideo method
+    await (audioHandler as dynamic).playFromVideo(
+      videoId: video.id.value,
+      title: video.title,
+      artist: video.author,
+      artUri: video.thumbnails.highResUrl,
     );
-
-    final url = await _youTubeService.getAudioUrl(video.id.value);
-
-    if (url != null) {
-      // Use dynamic cast for custom loadUrl method
-      await (audioHandler as dynamic).loadUrl(
-        url,
-        title: video.title,
-        artist: video.author,
-        artUri: video.thumbnails.highResUrl,
-      );
-    } else {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not play audio for this video.')),
-      );
-    }
   }
 
   final List<Color> _browseColors = [
@@ -228,7 +213,7 @@ class _SearchPageState extends State<SearchPage> {
                                 width: 60,
                                 height: 60,
                                 decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.2),
+                                  color: Colors.black.withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
