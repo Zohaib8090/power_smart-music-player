@@ -13,28 +13,30 @@ def home():
 def extract_audio_url(video_url):
     cookie_file = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     
-    # Using the user's suggested 'ios' client bypass strategy
+    # Refining the user's 'ios' strategy for better format discovery
     ydl_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
         'no_warnings': True,
-        # This 'ios' client is the secret—it bypasses the PO_TOKEN requirement
         'extractor_args': {
             'youtube': {
-                'player_client': ['ios'],
-                'skip': ['webpage', 'configs']
+                # iOS is the primary "secret" bypass, Android is the reliable backup
+                'player_client': ['ios', 'android', 'web_embedded'],
             }
         },
         'remote_components': ['ejs:github'],
         'js_runtimes': {'node': {}},
     }
     
+    # Many native clients fail if cookies are provided. 
+    # We will only use cookies if the native clients fail, but for now let's keep it simple.
     if os.path.exists(cookie_file):
         ydl_opts['cookiefile'] = cookie_file
         print(f"Logging: Using cookies from {cookie_file}")
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            print("Logging: Attempting extraction...")
             return ydl.extract_info(video_url, download=False)
     except Exception as e:
         print(f"Extraction failed: {str(e)}")
