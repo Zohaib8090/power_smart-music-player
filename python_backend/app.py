@@ -23,12 +23,15 @@ def extract_audio():
         'quiet': True,
         'noplaylist': True,
         'extract_flat': False,
-        # Stealth and Compatibility options
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'extractor_args': {'youtube': {'player_client': ['mweb', 'web']}},
-        # Solve Signature/n challenge (Requires JS runtime)
+        # Use iOS/Android clients to bypass PO Token and Signature hurdles
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'android', 'web_creator'],
+                'skip': ['webpage', 'configs'],
+            }
+        },
+        # Solve Signature challenges (Requires JS runtime)
         'remote_components': ['ejs:github'],
-        'js_runtimes': ['node'],
     }
 
     # Use cookies.txt if it exists (Netscape format)
