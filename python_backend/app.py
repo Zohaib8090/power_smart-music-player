@@ -13,6 +13,9 @@ def home():
 def extract_with_strategy(video_url):
     cookie_file = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     has_cookies = os.path.exists(cookie_file)
+    
+    # The PO Token provided by the user
+    po_token = 'CgtPRDJlUFVKbmd4TSii79TKBjIKCgJQSxIEGgAgDGLfAgrcAjE0LllUPVFodXdvOFB6OUVkSHphMjI4VXBKbWsxX3lFT2xqN3NkRnBpcVBVZnZIN3hTaGcwZE1JUkgtMzRUY2VYSlFEcXBnV0J0X0haOWhLeVpTc2IzM1JNWU5GX0dEZjZOREpBdzRxQnpjQzNDVkFmTGRHQmJ2WmdTVzdPZl8yaHF1UnROVUNKTjRUYzZxeVVBd1FEOXNSMmMwR3NyTk15Y1F5TDdWdzl0RThCbktrV2J1TDRGdUFOcnRIWFFab0JObUxYQ09qTWY2aC1QTUFQc3haTTQ4WWxBZGFkLUVZSEJNdUJKYzlIamNYY1lCV1ZxTGY3TU5lX0YyN0tGQXBlRVQwaWJYQUhtbjZVVTgtYkJSNmxLUTNKaDViS1ZGakp2Z1RoZGlMNnlfY0xLdkZncmJfTjg5LUFOcHY3Y3J4cEluQlJweEw4QzAzcFpTZDk5eXRJeGpZeUplUQ%3D%3D'
 
     # Common options for all strategies
     base_opts = {
@@ -39,10 +42,11 @@ def extract_with_strategy(video_url):
         }
     }}
 
-    # Strategy 3: Web Clients with Cookies (Age-restricted/Private)
+    # Strategy 3: Web Clients with Cookies AND PO Token
     s3_opts = {**base_opts, 'extractor_args': {
         'youtube': {
             'player_client': ['web', 'mweb', 'web_creator'],
+            'po_token': [f'mweb.gvs+{po_token}', f'web.gvs+{po_token}']
         }
     }}
     if has_cookies:
@@ -51,7 +55,7 @@ def extract_with_strategy(video_url):
     strategies = [
         ("Embedded", s1_opts),
         ("Native", s2_opts),
-        ("Web/Cookies", s3_opts)
+        ("Web/Cookies+PO", s3_opts)
     ]
 
     errors = []
