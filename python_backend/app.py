@@ -24,7 +24,7 @@ def extract_with_strategy(video_url):
         'noplaylist': True,
         'extract_flat': False,
         'remote_components': ['ejs:github'],
-        'js_runtimes': ['node'],
+        'js_runtimes': {'node': {}},
     }
 
     # Strategy 1: Embedded Clients (Currently the most resilient to PO Token)
