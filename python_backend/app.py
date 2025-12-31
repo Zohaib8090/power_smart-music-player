@@ -14,53 +14,53 @@ def extract_with_strategy(video_url):
     cookie_file = os.path.join(os.path.dirname(__file__), 'cookies.txt')
     has_cookies = os.path.exists(cookie_file)
 
-    # Strategy 1: Native App Clients (Generally bypasses PO Token and Signature hurdles)
-    # Note: These clients do NOT support cookies in yt-dlp, so we run them clean.
-    s1_opts = {
+    # Common options for all strategies
+    base_opts = {
         'format': 'bestaudio/best',
         'quiet': True,
         'noplaylist': True,
         'extract_flat': False,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android'],
-                'skip': ['configs', 'webpage']
-            }
-        },
         'remote_components': ['ejs:github'],
+        'js_runtimes': ['node'],
     }
 
-    # Strategy 2: Web Clients with Cookies (Best for age-restricted or private content)
-    s2_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'noplaylist': True,
-        'extract_flat': False,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['web', 'mweb', 'web_creator'],
-            }
-        },
-        'remote_components': ['ejs:github'],
-    }
+    # Strategy 1: Embedded Clients (Currently the most resilient to PO Token)
+    s1_opts = {**base_opts, 'extractor_args': {
+        'youtube': {
+            'player_client': ['web_embedded', 'tv_embedded'],
+        }
+    }}
+
+    # Strategy 2: Native App Clients
+    s2_opts = {**base_opts, 'extractor_args': {
+        'youtube': {
+            'player_client': ['ios', 'android'],
+            'skip': ['configs', 'webpage']
+        }
+    }}
+
+    # Strategy 3: Web Clients with Cookies (Age-restricted/Private)
+    s3_opts = {**base_opts, 'extractor_args': {
+        'youtube': {
+            'player_client': ['web', 'mweb', 'web_creator'],
+        }
+    }}
     if has_cookies:
-        s2_opts['cookiefile'] = cookie_file
+        s3_opts['cookiefile'] = cookie_file
+
+    strategies = [
+        ("Embedded", s1_opts),
+        ("Native", s2_opts),
+        ("Web/Cookies", s3_opts)
+    ]
 
     errors = []
-
-    # Attempt Strategy 1 (Native App) first - currently the most reliable for general extraction
-    try:
-        with yt_dlp.YoutubeDL(s1_opts) as ydl:
-            return ydl.extract_info(video_url, download=False)
-    except Exception as e:
-        errors.append(f"Strategy 1 (Native) failed: {str(e)}")
-
-    # Attempt Strategy 2 (Web/Cookies) as fallback
-    try:
-        with yt_dlp.YoutubeDL(s2_opts) as ydl:
-            return ydl.extract_info(video_url, download=False)
-    except Exception as e:
-        errors.append(f"Strategy 2 (Web) failed: {str(e)}")
+    for name, opts in strategies:
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(video_url, download=False)
+        except Exception as e:
+            errors.append(f"{name} failed: {str(e)}")
 
     raise Exception(" | ".join(errors))
 
