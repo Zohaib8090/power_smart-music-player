@@ -47,11 +47,16 @@ class WinPlayer {
   void Dispose();
 
  private:
+  void SendProgress();
+  static void CALLBACK OnTimer(PVOID lpParameter, BOOLEAN TimerOrWaitFired);
+
   std::string player_id_;
   flutter::EventSink<flutter::EncodableValue>* event_sink_;
   IMFAttributes* attributes_ = nullptr;
   IMFMediaEngine* engine_ = nullptr;
   IUnknown* notify_obj_ = nullptr;
+  HANDLE timer_queue_ = nullptr;
+  HANDLE timer_ = nullptr;
 };
 
 class PowerPlayerPlugin : public flutter::Plugin {

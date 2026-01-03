@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   firebase_core
   permission_handler_windows
   power_player
+  webview_windows
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

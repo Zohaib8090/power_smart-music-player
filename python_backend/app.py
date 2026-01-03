@@ -9,7 +9,11 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "Power Smart Python Extractor is Running"
+    try:
+        version = yt_dlp.version.__version__
+    except:
+        version = "unknown"
+    return f"Power Smart Python Extractor is Running (yt-dlp: {version})"
 
 def extract_audio_url(video_url, custom_cookies=None, custom_ua=None, custom_po=None):
     # Fallback PO Token

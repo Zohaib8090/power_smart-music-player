@@ -4,6 +4,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:power_player/power_player.dart';
 import 'package:flutter/foundation.dart';
 import 'package:rxdart/rxdart.dart';
+import 'package:get_it/get_it.dart';
+import 'settings_service.dart';
 import 'youtube_service.dart';
 
 Future<AudioHandler> initAudioService() async {
@@ -22,6 +24,8 @@ class AudioPlayerHandler extends BaseAudioHandler
     with QueueHandler, SeekHandler {
   final _player = AudioPlayer();
   final PowerPlayer _powerPlayer = PowerPlayer(id: 'main_audio');
+  final SettingsService _settings = GetIt.I<SettingsService>();
+  bool _isCrossfading = false;
 
   // Use custom plugin for Windows and Android
   final bool _usePowerPlayer =
@@ -29,6 +33,28 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   AudioPlayerHandler() {
     _init();
+    _listenToSettings();
+  }
+
+  void _listenToSettings() {
+    _settings.addListener(() {
+      _applyEngineSettings();
+    });
+  }
+
+  Future<void> _applyEngineSettings() async {
+    if (_usePowerPlayer) {
+      await _powerPlayer.setEngineConfig({
+        'dvc': _settings.dvcEnabled,
+        'resampler': _settings.resamplerMode,
+        'output': _settings.outputPlugin,
+        'chromecast': _settings.chromecastEnabled,
+        'gapless': _settings.gaplessPlayback,
+        'bit_depth': _settings.audioBitDepth,
+        'sample_rate': _settings.audioSampleRate,
+        'volume': 1.0, // Base volume
+      });
+    }
   }
 
   Future<void> _init() async {
@@ -65,6 +91,17 @@ class AudioPlayerHandler extends BaseAudioHandler
           ),
         );
       });
+
+      _player.durationStream.listen((dur) {
+        if (mediaItem.value != null && dur != null) {
+          mediaItem.add(mediaItem.value!.copyWith(duration: dur));
+        }
+      });
+
+      _player.positionStream.listen((pos) {
+        playbackState.add(playbackState.value.copyWith(updatePosition: pos));
+        _checkCrossfade(pos);
+      });
     } else {
       // Initialize our custom PowerPlayer
       await _powerPlayer.initialize();
@@ -87,7 +124,6 @@ class AudioPlayerHandler extends BaseAudioHandler
             final message = event['message'] as String?;
             final errorCode = event['errorCode'];
             print("🛑 PowerPlayer Error: $message (Code: $errorCode)");
-            // We can also broadcast this error through playbackState if needed
             playbackState.add(
               playbackState.value.copyWith(
                 processingState: AudioProcessingState.error,
@@ -95,6 +131,18 @@ class AudioPlayerHandler extends BaseAudioHandler
               ),
             );
             break;
+        }
+      });
+
+      // Sync PowerPlayer progress to audio_service
+      _powerPlayer.positionStream.listen((pos) {
+        playbackState.add(playbackState.value.copyWith(updatePosition: pos));
+        _checkCrossfade(pos);
+      });
+
+      _powerPlayer.durationStream.listen((dur) {
+        if (mediaItem.value != null) {
+          mediaItem.add(mediaItem.value!.copyWith(duration: dur));
         }
       });
 
@@ -106,6 +154,11 @@ class AudioPlayerHandler extends BaseAudioHandler
             MediaControl.stop,
             MediaControl.skipToNext,
           ],
+          systemActions: const {
+            MediaAction.seek,
+            MediaAction.seekForward,
+            MediaAction.seekBackward,
+          },
           processingState: AudioProcessingState.ready,
           playing: false,
         ),
@@ -124,6 +177,7 @@ class AudioPlayerHandler extends BaseAudioHandler
         break;
       case 'ended':
         audioState = AudioProcessingState.completed;
+        _onPlaybackEnded();
         break;
       case 'idle':
       default:
@@ -146,6 +200,15 @@ class AudioPlayerHandler extends BaseAudioHandler
         ],
       ),
     );
+  }
+
+  void _onPlaybackEnded() {
+    if (playbackState.value.repeatMode == AudioServiceRepeatMode.one) {
+      _powerPlayer.seek(Duration.zero);
+      _powerPlayer.play();
+    } else {
+      skipToNext();
+    }
   }
 
   @override
@@ -175,8 +238,63 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
   }
 
+  void _checkCrossfade(Duration position) {
+    if (_isCrossfading || _settings.crossfadeDuration <= 0) return;
+
+    final duration = mediaItem.value?.duration;
+    if (duration == null || duration == Duration.zero) return;
+
+    final crossfadePoint =
+        duration - Duration(seconds: _settings.crossfadeDuration);
+
+    if (position >= crossfadePoint) {
+      _startCrossfade();
+    }
+  }
+
+  Future<void> _startCrossfade() async {
+    _isCrossfading = true;
+    final fadeOutDuration = Duration(seconds: _settings.crossfadeDuration);
+
+    // Fade out
+    _fadeVolume(1.0, 0.0, fadeOutDuration).then((_) async {
+      await skipToNext();
+      // Fade in next track
+      _fadeVolume(0.0, 1.0, Duration(seconds: _settings.fadeDuration));
+      _isCrossfading = false;
+    });
+  }
+
+  Future<void> _fadeVolume(double from, double to, Duration duration) async {
+    if (duration == Duration.zero) {
+      if (_usePowerPlayer) {
+        await _powerPlayer.setVolume(to);
+      } else {
+        await _player.setVolume(to);
+      }
+      return;
+    }
+
+    final steps = 10;
+    final stepDuration = Duration(
+      milliseconds: duration.inMilliseconds ~/ steps,
+    );
+    final volumeStep = (to - from) / steps;
+
+    for (int i = 0; i <= steps; i++) {
+      final currentVolume = from + (volumeStep * i);
+      if (_usePowerPlayer) {
+        await _powerPlayer.setVolume(currentVolume);
+      } else {
+        await _player.setVolume(currentVolume);
+      }
+      await Future.delayed(stepDuration);
+    }
+  }
+
   @override
   Future<void> seek(Duration position) async {
+    playbackState.add(playbackState.value.copyWith(updatePosition: position));
     if (_usePowerPlayer) {
       await _powerPlayer.seek(position);
     } else {
@@ -184,18 +302,126 @@ class AudioPlayerHandler extends BaseAudioHandler
     }
   }
 
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
+    if (!_usePowerPlayer) {
+      final loopMode = {
+        AudioServiceRepeatMode.none: LoopMode.off,
+        AudioServiceRepeatMode.one: LoopMode.one,
+        AudioServiceRepeatMode.all: LoopMode.all,
+      }[repeatMode]!;
+      await _player.setLoopMode(loopMode);
+    }
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    playbackState.add(playbackState.value.copyWith(shuffleMode: shuffleMode));
+    if (!_usePowerPlayer) {
+      await _player.setShuffleModeEnabled(
+        shuffleMode == AudioServiceShuffleMode.all,
+      );
+    }
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    final nextIndex = _getNextIndex();
+    if (nextIndex != -1) {
+      skipToQueueItem(nextIndex);
+    }
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    final prevIndex = _getPreviousIndex();
+    if (prevIndex != -1) {
+      skipToQueueItem(prevIndex);
+    }
+  }
+
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= queue.value.length) return;
+    final item = queue.value[index];
+    playFromVideo(
+      videoId: item.id,
+      title: item.title,
+      artist: item.artist ?? "",
+      artUri: item.artUri?.toString(),
+    );
+  }
+
+  int _getNextIndex() {
+    final curr = _getCurrentIndex();
+    if (curr == -1) return -1;
+
+    if (playbackState.value.shuffleMode == AudioServiceShuffleMode.all) {
+      final indices = List.generate(queue.value.length, (i) => i)..remove(curr);
+      if (indices.isEmpty) return curr;
+      return (indices..shuffle()).first;
+    }
+
+    if (curr < queue.value.length - 1) {
+      return curr + 1;
+    } else if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+      return 0;
+    }
+    return -1;
+  }
+
+  int _getPreviousIndex() {
+    final curr = _getCurrentIndex();
+    if (curr == -1) return -1;
+    if (curr > 0) {
+      return curr - 1;
+    } else if (playbackState.value.repeatMode == AudioServiceRepeatMode.all) {
+      return queue.value.length - 1;
+    }
+    return -1;
+  }
+
+  int _getCurrentIndex() {
+    final id = mediaItem.value?.id;
+    if (id == null) return -1;
+    return queue.value.indexWhere((item) => item.id == id);
+  }
+
   final BehaviorSubject<String?> extractionStatus =
       BehaviorSubject<String?>.seeded(null);
+  String? _currentLoadingVideoId;
 
   Future<void> playFromVideo({
     required String videoId,
     required String title,
     required String artist,
     required String? artUri,
+    List<MediaItem>? newQueue,
   }) async {
+    _currentLoadingVideoId = videoId;
+
+    if (newQueue != null && newQueue.isNotEmpty) {
+      queue.add(newQueue);
+    } else {
+      // If the song is already in the queue, we'll keep its metadata.
+      // If not, and queue is empty or doesn't have it, we could add it.
+      bool exists = queue.value.any((item) => item.id == videoId);
+      if (!exists && queue.value.isEmpty) {
+        queue.add([
+          MediaItem(
+            id: videoId,
+            title: title,
+            artist: artist,
+            artUri: artUri != null ? Uri.parse(artUri) : null,
+          ),
+        ]);
+      }
+    }
+
     // 1. Immediately update UI with song info (provides instant feedback)
     final initialItem = MediaItem(
-      id: videoId, // Use videoId as temporary ID
+      id: videoId,
       title: title,
       artist: artist,
       artUri: artUri != null ? Uri.parse(artUri) : null,
@@ -213,14 +439,30 @@ class AudioPlayerHandler extends BaseAudioHandler
       final YouTubeService youTubeService = YouTubeService();
       final url = await youTubeService.getAudioUrl(videoId);
 
+      // Check if we are still supposed to be playing THIS video
+      if (_currentLoadingVideoId != videoId) {
+        print(
+          "Ignoring extraction result for $videoId: focused moved to $_currentLoadingVideoId",
+        );
+        return;
+      }
+
       if (url != null) {
         extractionStatus.add("Preparing stream...");
-        await loadUrl(url, title: title, artist: artist, artUri: artUri);
+        await loadUrl(
+          url,
+          id: videoId,
+          title: title,
+          artist: artist,
+          artUri: artUri,
+        );
         extractionStatus.add(null); // Clear status
       } else {
         throw Exception("Could not extract audio URL");
       }
     } catch (e) {
+      if (_currentLoadingVideoId != videoId) return;
+
       print("Error in background extraction: $e");
       extractionStatus.add("Extraction failed: $e");
       Future.delayed(
@@ -239,16 +481,18 @@ class AudioPlayerHandler extends BaseAudioHandler
 
   Future<void> loadUrl(
     String url, {
+    required String id,
     String? title,
     String? artist,
     String? artUri,
   }) async {
     try {
       final item = MediaItem(
-        id: url,
+        id: id, // KEEP THE ORIGINAL ID (videoId), DON'T USE URL
         title: title ?? "Unknown Title",
         artist: artist ?? "Unknown Artist",
         artUri: artUri != null ? Uri.parse(artUri) : null,
+        extras: {'url': url}, // Store URL in extras if needed
       );
       mediaItem.add(item);
 

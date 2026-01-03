@@ -5,6 +5,7 @@ import '../../../../features/player/presentation/widgets/mini_player.dart';
 import '../../../../features/search/presentation/pages/search_page.dart';
 import '../../../library/presentation/pages/library_page.dart';
 import 'home_tab.dart';
+import '../../../../core/services/switchable_audio_handler.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,12 +16,12 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
-
   final List<Widget> _pages = const [HomeTab(), SearchPage(), LibraryPage()];
 
   @override
   Widget build(BuildContext context) {
     final audioHandler = GetIt.I<AudioHandler>();
+
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: Stack(
@@ -30,7 +31,7 @@ class _MainScreenState extends State<MainScreen> {
 
           // Extraction Status Overlay (Small Box in foreground)
           StreamBuilder<String?>(
-            stream: (audioHandler as dynamic).extractionStatus,
+            stream: (audioHandler as SwitchableAudioHandler).extractionStatus,
             builder: (context, snapshot) {
               final status = snapshot.data;
               if (status == null) return const SizedBox.shrink();

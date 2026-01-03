@@ -32,6 +32,13 @@ class MockPowerPlayerPlatform
   Future<void> dispose(String playerId) => Future.value();
 
   @override
+  Future<void> setVolume(String playerId, double volume) => Future.value();
+
+  @override
+  Future<void> setEngineConfig(String playerId, Map<String, dynamic> config) =>
+      Future.value();
+
+  @override
   Stream<Map<String, dynamic>> playerEvents(String playerId) =>
       const Stream.empty();
 }

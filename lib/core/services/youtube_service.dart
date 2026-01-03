@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
+import 'local_extractor.dart';
+import 'youtube_cookie_service.dart';
 
 class YouTubeService {
   // Use a very standard Windows Chrome User-Agent
@@ -31,16 +33,40 @@ class YouTubeService {
       "https://web-backend-3wfv.onrender.com";
 
   Future<String?> getAudioUrl(String videoId) async {
+    // 1. Windows: Try Local Extraction first (Most resilient)
+    if (Platform.isWindows) {
+      try {
+        print("Using Local Extractor for Windows...");
+        final localUrl = await LocalExtractor().extractAudioUrl(videoId);
+        if (localUrl != null) return localUrl;
+      } catch (e) {
+        print("Local extraction failed, falling back to backend: $e");
+      }
+    }
+
+    // 2. Fallback or Mobile: Use Render Backend
     int retryCount = 0;
     const int maxRetries = 2;
 
     while (retryCount <= maxRetries) {
       try {
+        final cookieService = YouTubeCookieService();
+        final cookieHeaders = await cookieService.getCookieHeaders();
+        final savedUa = await cookieService.getUserAgent();
+        final poToken = await cookieService.getPoToken();
+
         final response = await http
-            .get(Uri.parse("$_pythonBackendUrl/extract?id=$videoId"))
-            .timeout(
-              const Duration(seconds: 40),
-            ); // Increased for Render cold start
+            .get(
+              Uri.parse("$_pythonBackendUrl/extract?id=$videoId"),
+              headers: {
+                ...cookieHeaders,
+                'User-Agent': savedUa ?? browserUserAgent,
+                'Referer': 'https://www.youtube.com/',
+                if (poToken != null && poToken.isNotEmpty)
+                  'X-PO-Token': poToken,
+              },
+            )
+            .timeout(const Duration(seconds: 40));
 
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
@@ -52,15 +78,25 @@ class YouTubeService {
           );
         }
 
+        if (response.statusCode == 500) {
+          final data = json.decode(response.body);
+          String error = data['error'] ?? "";
+          if (error.contains("Sign in to confirm you're not a bot")) {
+            throw Exception(
+              "YouTube blocked this request. Please Go to Settings -> Logout -> Login to YouTube again.",
+            );
+          }
+          throw Exception(error);
+        }
+
         throw Exception("Server responded with status: ${response.statusCode}");
       } catch (e) {
         retryCount++;
         print("Extraction attempt $retryCount failed for $videoId: $e");
 
         if (retryCount > maxRetries) {
-          return null; // Let the UI handle the failure
+          return null;
         }
-        // Exponential backoff
         await Future.delayed(Duration(seconds: 2 * retryCount));
       }
     }

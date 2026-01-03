@@ -14,6 +14,17 @@ class PowerPlayer {
   Stream<Map<String, dynamic>> get events =>
       PowerPlayerPlatform.instance.playerEvents(id);
 
+  Stream<Duration> get positionStream => events
+      .where((event) => event['type'] == 'progress')
+      .map((event) => Duration(milliseconds: event['position'] as int));
+
+  Stream<Duration> get durationStream => events
+      .where(
+        (event) => event['type'] == 'duration' || event['type'] == 'progress',
+      )
+      .map((event) => Duration(milliseconds: event['duration'] as int))
+      .distinct();
+
   Future<int?> initialize() async {
     if (_isInitialized) return _textureId;
     _textureId = await PowerPlayerPlatform.instance.initialize(id);
@@ -46,6 +57,14 @@ class PowerPlayer {
     await PowerPlayerPlatform.instance.dispose(id);
     _isInitialized = false;
     _textureId = null;
+  }
+
+  Future<void> setVolume(double volume) async {
+    await PowerPlayerPlatform.instance.setVolume(id, volume);
+  }
+
+  Future<void> setEngineConfig(Map<String, dynamic> config) async {
+    await PowerPlayerPlatform.instance.setEngineConfig(id, config);
   }
 }
 

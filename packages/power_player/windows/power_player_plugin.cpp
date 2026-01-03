@@ -61,6 +61,7 @@ STDMETHODIMP WinPlayerNotify::EventNotify(DWORD event, DWORD_PTR param1, DWORD p
 WinPlayer::WinPlayer(std::string id, flutter::EventSink<flutter::EncodableValue>* sink)
     : player_id_(id), event_sink_(sink) {
   MFStartup(MF_VERSION);
+  timer_queue_ = CreateTimerQueue();
   
   HRESULT hr = MFCreateAttributes(&attributes_, 1);
   if (SUCCEEDED(hr)) {
@@ -84,6 +85,12 @@ WinPlayer::WinPlayer(std::string id, flutter::EventSink<flutter::EncodableValue>
         data[flutter::EncodableValue("errorCode")] = flutter::EncodableValue((int)code);
         this->event_sink_->Success(flutter::EncodableValue(data));
       } else if (event == MF_MEDIA_ENGINE_EVENT_CANPLAY) {
+        data[flutter::EncodableValue("type")] = flutter::EncodableValue("duration");
+        double duration = 0;
+        if (this->engine_) duration = this->engine_->GetDuration();
+        data[flutter::EncodableValue("duration")] = flutter::EncodableValue((int64_t)(duration * 1000));
+        this->event_sink_->Success(flutter::EncodableValue(data));
+
         data[flutter::EncodableValue("type")] = flutter::EncodableValue("state");
         data[flutter::EncodableValue("state")] = flutter::EncodableValue("ready");
         this->event_sink_->Success(flutter::EncodableValue(data));
@@ -137,11 +144,58 @@ void WinPlayer::SetDataSource(const std::string& url, const std::map<std::string
   SysFreeString(bstr);
 }
 
-void WinPlayer::Play() { if (engine_) engine_->Play(); }
-void WinPlayer::Pause() { if (engine_) engine_->Pause(); }
-void WinPlayer::Stop() { if (engine_) { engine_->Pause(); engine_->SetCurrentTime(0.0); } }
+void WinPlayer::Play() { 
+  if (engine_) {
+    engine_->Play();
+    if (!timer_) {
+      CreateTimerQueueTimer(&timer_, timer_queue_, (WAITORTIMERCALLBACK)OnTimer, this, 0, 1000, WT_EXECUTEDEFAULT);
+    }
+  }
+}
+void WinPlayer::Pause() { 
+  if (engine_) {
+    engine_->Pause();
+    if (timer_) {
+      DeleteTimerQueueTimer(timer_queue_, timer_, nullptr);
+      timer_ = nullptr;
+    }
+  }
+}
+void WinPlayer::Stop() { 
+  if (engine_) {
+    engine_->Pause();
+    engine_->SetCurrentTime(0.0);
+    if (timer_) {
+      DeleteTimerQueueTimer(timer_queue_, timer_, nullptr);
+      timer_ = nullptr;
+    }
+  }
+}
 void WinPlayer::Seek(long long pos_ms) { if (engine_) engine_->SetCurrentTime((double)pos_ms / 1000.0); }
-void WinPlayer::Dispose() { Stop(); }
+void WinPlayer::Dispose() { 
+  Stop(); 
+  if (timer_queue_) {
+    DeleteTimerQueue(timer_queue_);
+    timer_queue_ = nullptr;
+  }
+}
+
+void WinPlayer::OnTimer(PVOID lpParameter, BOOLEAN TimerOrWaitFired) {
+  WinPlayer* player = static_cast<WinPlayer*>(lpParameter);
+  player->SendProgress();
+}
+
+void WinPlayer::SendProgress() {
+  if (!engine_ || !event_sink_) return;
+  
+  flutter::EncodableMap data;
+  data[flutter::EncodableValue("playerId")] = flutter::EncodableValue(player_id_);
+  data[flutter::EncodableValue("type")] = flutter::EncodableValue("progress");
+  data[flutter::EncodableValue("position")] = flutter::EncodableValue((int64_t)(engine_->GetCurrentTime() * 1000));
+  data[flutter::EncodableValue("duration")] = flutter::EncodableValue((int64_t)(engine_->GetDuration() * 1000));
+  
+  event_sink_->Success(flutter::EncodableValue(data));
+}
 
 // --- PowerPlayerPlugin Implementation ---
 

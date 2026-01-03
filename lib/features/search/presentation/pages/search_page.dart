@@ -41,6 +41,16 @@ class _SearchPageState extends State<SearchPage> {
       title: video.title,
       artist: video.author,
       artUri: video.thumbnails.highResUrl,
+      newQueue: _searchResults
+          .map(
+            (v) => MediaItem(
+              id: v.id.value,
+              title: v.title,
+              artist: v.author,
+              artUri: Uri.parse(v.thumbnails.highResUrl),
+            ),
+          )
+          .toList(),
     );
   }
 

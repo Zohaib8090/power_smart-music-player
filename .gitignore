@@ -29,7 +29,22 @@
 .packages
 .pub-cache/
 .pub/
+build/
+bin/
+obj/
+/android/app/build/
+/windows/build/
 /build/
+
+# Python related
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+python_backend/__pycache__/
 
 # Web related
 lib/generated_plugin_registrant.dart

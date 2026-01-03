@@ -45,6 +45,14 @@ abstract class PowerPlayerPlatform extends PlatformInterface {
     throw UnimplementedError('dispose() has not been implemented.');
   }
 
+  Future<void> setVolume(String playerId, double volume) {
+    throw UnimplementedError('setVolume() has not been implemented.');
+  }
+
+  Future<void> setEngineConfig(String playerId, Map<String, dynamic> config) {
+    throw UnimplementedError('setEngineConfig() has not been implemented.');
+  }
+
   Stream<Map<String, dynamic>> playerEvents(String playerId) {
     throw UnimplementedError('playerEvents() has not been implemented.');
   }

@@ -62,6 +62,25 @@ class MethodChannelPowerPlayer extends PowerPlayerPlatform {
   }
 
   @override
+  Future<void> setVolume(String playerId, double volume) async {
+    await methodChannel.invokeMethod('setVolume', {
+      'playerId': playerId,
+      'volume': volume,
+    });
+  }
+
+  @override
+  Future<void> setEngineConfig(
+    String playerId,
+    Map<String, dynamic> config,
+  ) async {
+    await methodChannel.invokeMethod('setEngineConfig', {
+      'playerId': playerId,
+      'config': config,
+    });
+  }
+
+  @override
   Stream<Map<String, dynamic>> playerEvents(String playerId) {
     return eventChannel
         .receiveBroadcastStream()

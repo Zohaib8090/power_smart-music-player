@@ -3,9 +3,9 @@ pluginManagement {
         run {
             val properties = java.util.Properties()
             file("local.properties").inputStream().use { properties.load(it) }
-            val flutterSdkPath = properties.getProperty("flutter.sdk")
-            require(flutterSdkPath != null) { "flutter.sdk not set in local.properties" }
-            flutterSdkPath
+            val path = properties.getProperty("flutter.sdk")
+            require(path != null) { "flutter.sdk not set in local.properties" }
+            path.replace("\\", "/")
         }
 
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
@@ -23,4 +23,7 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
+
 include(":app")
+rootProject.name = "power_player_example"
+

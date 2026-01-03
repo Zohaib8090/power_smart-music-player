@@ -2,13 +2,14 @@ group = "com.example.power_player"
 version = "1.0-SNAPSHOT"
 
 buildscript {
-    ext.kotlin_version = "2.2.20"
+    ext.kotlin_version = "2.1.0" 
     repositories {
         google()
         mavenCentral()
     }
 
     dependencies {
+        // AGP 8.11.1 is required for official SDK 36 support
         classpath("com.android.tools.build:gradle:8.11.1")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
     }
@@ -26,16 +27,16 @@ apply plugin: "kotlin-android"
 
 android {
     namespace = "com.example.power_player"
-
-    compileSdk = 36
+    compileSdk = 36 // Android 16
 
     compileOptions {
+        // Java 17 is the mandatory minimum for AGP 8.x
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17
+        jvmTarget = "17" 
     }
 
     sourceSets {
@@ -45,24 +46,27 @@ android {
 
     defaultConfig {
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     dependencies {
-        implementation("androidx.media3:media3-exoplayer:1.2.0")
-        implementation("androidx.media3:media3-exoplayer-dash:1.2.0")
-        implementation("androidx.media3:media3-exoplayer-hls:1.2.0")
-        implementation("androidx.media3:media3-datasource-okhttp:1.2.0")
+        // Media3 1.5.0 or higher is best for SDK 36
+        def media3_version = "1.5.0"
+        implementation("androidx.media3:media3-exoplayer:$media3_version")
+        implementation("androidx.media3:media3-exoplayer-dash:$media3_version")
+        implementation("androidx.media3:media3-exoplayer-hls:$media3_version")
+        implementation("androidx.media3:media3-datasource-okhttp:$media3_version")
+        implementation("androidx.media3:media3-ui:$media3_version")
+
         testImplementation("org.jetbrains.kotlin:kotlin-test")
-        testImplementation("org.mockito:mockito-core:5.0.0")
+        testImplementation("org.mockito:mockito-core:5.11.0")
     }
 
     testOptions {
         unitTests.all {
             useJUnitPlatform()
-
             testLogging {
                events "passed", "skipped", "failed", "standardOut", "standardError"
-               outputs.upToDateWhen {false}
                showStandardStreams = true
             }
         }

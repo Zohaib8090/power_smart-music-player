@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:get_it/get_it.dart';
+import 'settings_page.dart';
+import 'profile_page.dart';
+import '../../../../core/services/settings_service.dart';
+import 'dart:io';
 
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
@@ -60,9 +64,50 @@ class HomeTab extends StatelessWidget {
             ),
           ),
           actions: [
+            ListenableBuilder(
+              listenable: GetIt.I<SettingsService>(),
+              builder: (context, _) {
+                final settings = GetIt.I<SettingsService>();
+                ImageProvider avatarImage;
+                if (settings.avatarPath.startsWith('http')) {
+                  avatarImage = NetworkImage(settings.avatarPath);
+                } else if (settings.avatarPath.isNotEmpty &&
+                    File(settings.avatarPath).existsSync()) {
+                  avatarImage = FileImage(File(settings.avatarPath));
+                } else {
+                  avatarImage = const NetworkImage(
+                    'https://www.w3schools.com/howto/img_avatar.png',
+                  );
+                }
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ProfilePage(),
+                      ),
+                    );
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 8.0),
+                    child: CircleAvatar(
+                      radius: 18,
+                      backgroundImage: avatarImage,
+                      backgroundColor: const Color(0xFF2A2A2A),
+                    ),
+                  ),
+                );
+              },
+            ),
             IconButton(
               icon: const Icon(Icons.settings, color: Colors.white),
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsPage()),
+                );
+              },
             ),
           ],
         ),
@@ -85,12 +130,28 @@ class HomeTab extends StatelessWidget {
                 return GestureDetector(
                   onTap: () async {
                     final audioHandler = GetIt.I<AudioHandler>();
+
+                    // Create queue from all featured songs
+                    final queue = _featuredSongs
+                        .map(
+                          (s) => MediaItem(
+                            id: s['id']!,
+                            title: s['title']!,
+                            artist: s['artist']!,
+                            artUri: s['artUri'] != null
+                                ? Uri.parse(s['artUri']!)
+                                : null,
+                          ),
+                        )
+                        .toList();
+
                     // Uses the new playFromVideo background flow
                     await (audioHandler as dynamic).playFromVideo(
                       videoId: song['id']!,
                       title: song['title']!,
                       artist: song['artist']!,
                       artUri: song['artUri'],
+                      newQueue: queue,
                     );
                   },
                   child: Container(

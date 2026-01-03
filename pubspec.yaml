@@ -59,6 +59,9 @@ dependencies:
   audioplayers: ^6.5.1
   http: ^1.6.0
   audio_video_progress_bar: ^2.0.3
+  webview_flutter: ^4.10.0
+  webview_windows: ^0.4.0
+  process_run: ^1.1.0
   power_player:
     path: packages/power_player
 
@@ -72,6 +75,10 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  msix: ^3.16.7
+
+dependency_overrides:
+  get_it: ^9.2.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -113,3 +120,10 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+msix_config:
+  display_name: Power Smart
+  publisher_display_name: Zohaib
+  identity_name: com.zohaib.powersmart
+  msix_version: 1.0.0.0
+  capabilities: internet, location, microphone
