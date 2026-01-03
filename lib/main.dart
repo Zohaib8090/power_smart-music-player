@@ -8,6 +8,7 @@ import 'core/theme/app_theme.dart';
 import 'core/services/settings_service.dart';
 import 'features/auth/presentation/pages/login_page.dart';
 import 'core/services/permission_service.dart';
+import 'core/services/webview_extractor.dart';
 
 void main() async {
   print('🚀 App starting...');
@@ -67,6 +68,27 @@ class PowerSmartApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: settings.themeMode,
+          builder: (context, child) {
+            // Mount the hidden WebView Extractor in the widget tree.
+            // We use IndexedStack to ensure it's "active" but hidden behind the app.
+            // Index 1 is the child (App), Index 0 is the WebView.
+            return Stack(
+              textDirection: TextDirection.ltr,
+              children: [
+                // 1. The Hidden WebView (Needs size to render)
+                Opacity(
+                  opacity: 0.01,
+                  child: SizedBox(
+                    width: 1,
+                    height: 1,
+                    child: WebViewExtractor().buildHiddenWebView(),
+                  ),
+                ),
+                // 2. The App Content
+                child ?? const SizedBox(),
+              ],
+            );
+          },
           home: const LoginPage(),
         );
       },

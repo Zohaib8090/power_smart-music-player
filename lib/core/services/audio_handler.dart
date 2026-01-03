@@ -437,7 +437,7 @@ class AudioPlayerHandler extends BaseAudioHandler
     try {
       extractionStatus.add("Extracting audio for \"$title\"...");
       final YouTubeService youTubeService = YouTubeService();
-      final url = await youTubeService.getAudioUrl(videoId);
+      final data = await youTubeService.getAudioUrl(videoId);
 
       // Check if we are still supposed to be playing THIS video
       if (_currentLoadingVideoId != videoId) {
@@ -447,14 +447,27 @@ class AudioPlayerHandler extends BaseAudioHandler
         return;
       }
 
-      if (url != null) {
+      if (data != null && data['stream_url'] != null) {
         extractionStatus.add("Preparing stream...");
+        final url = data['stream_url'] as String;
+        final durationSec = data['duration'];
+        Duration? duration;
+        if (durationSec != null) {
+          duration = Duration(seconds: durationSec.toInt());
+        }
+
+        final headers = data['headers'] != null
+            ? Map<String, String>.from(data['headers'])
+            : null;
+
         await loadUrl(
           url,
           id: videoId,
           title: title,
           artist: artist,
           artUri: artUri,
+          duration: duration,
+          headers: headers,
         );
         extractionStatus.add(null); // Clear status
       } else {
@@ -485,27 +498,47 @@ class AudioPlayerHandler extends BaseAudioHandler
     String? title,
     String? artist,
     String? artUri,
+    Duration? duration,
+    Map<String, String>? headers,
   }) async {
     try {
+      print("Entering loadUrl with ID: $id and URL: $url");
       final item = MediaItem(
         id: id, // KEEP THE ORIGINAL ID (videoId), DON'T USE URL
         title: title ?? "Unknown Title",
         artist: artist ?? "Unknown Artist",
         artUri: artUri != null ? Uri.parse(artUri) : null,
+        duration: duration,
         extras: {'url': url}, // Store URL in extras if needed
       );
       mediaItem.add(item);
 
+      print("Using PowerPlayer: $_usePowerPlayer");
+
       if (_usePowerPlayer) {
-        final headers = {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Referer': 'https://www.youtube.com/',
-        };
-        await _powerPlayer.setDataSource(url, headers: headers);
+        // Use provided headers (from WebView) or fallback to Desktop UA
+        final effectiveHeaders =
+            headers ??
+            {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': 'https://www.youtube.com/',
+            };
+        // Print headers for debugging
+        print("PowerPlayer setting source with headers: $effectiveHeaders");
+        await _powerPlayer.setDataSource(url, headers: effectiveHeaders);
         await _powerPlayer.play();
       } else {
-        final source = AudioSource.uri(Uri.parse(url));
+        final effectiveHeaders =
+            headers ??
+            {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            };
+        final source = AudioSource.uri(
+          Uri.parse(url),
+          headers: effectiveHeaders,
+        );
         await _player.setAudioSource(source);
         await _player.play();
       }

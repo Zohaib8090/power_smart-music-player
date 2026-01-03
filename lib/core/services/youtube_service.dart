@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:http/http.dart' as http;
 import 'local_extractor.dart';
+import 'webview_extractor.dart';
 import 'youtube_cookie_service.dart';
 
 class YouTubeService {
@@ -32,21 +33,79 @@ class YouTubeService {
   static const String _pythonBackendUrl =
       "https://web-backend-3wfv.onrender.com";
 
-  Future<String?> getAudioUrl(String videoId) async {
-    // 1. Windows: Try Local Extraction first (Most resilient)
+  Future<Map<String, dynamic>?> getAudioUrl(String videoId) async {
+    // ------------------------------------------------------------------------------
+    // STRATEGY: Backend First -> Fallback to Local/WebView
+    // ------------------------------------------------------------------------------
+
+    // 1. Try Backend Extraction (Prioritized)
+    print("Attempting Backend Extraction for $videoId...");
+    try {
+      final backendResult = await _extractViaBackend(videoId);
+      if (backendResult != null) {
+        print("✅ Backend Extraction Success!");
+        return backendResult;
+      }
+    } catch (e) {
+      print("⚠️ Backend Extraction Failed (will try local fallback): $e");
+    }
+
+    // 2. Fallback: Local Extraction (Windows) or WebView (Mobile)
+    print("Falling back to Local/WebView Extraction...");
+
     if (Platform.isWindows) {
+      // Windows Local Fallback
       try {
-        print("Using Local Extractor for Windows...");
         final localUrl = await LocalExtractor().extractAudioUrl(videoId);
-        if (localUrl != null) return localUrl;
+        if (localUrl != null) {
+          int duration = 0;
+          try {
+            var video = await _yt.videos.get(videoId);
+            duration = video.duration?.inSeconds ?? 0;
+          } catch (_) {}
+          return {
+            'stream_url': localUrl,
+            'duration': duration,
+            'title': '',
+            'artist': '',
+          };
+        }
       } catch (e) {
-        print("Local extraction failed, falling back to backend: $e");
+        print("❌ Windows Local Fallback Failed: $e");
+      }
+    } else {
+      // Mobile WebView Fallback
+      try {
+        final webViewResult = await WebViewExtractor().extractStream(videoId);
+        if (webViewResult != null) {
+          int duration = 0;
+          try {
+            var video = await _yt.videos.get(videoId);
+            duration = video.duration?.inSeconds ?? 0;
+          } catch (_) {}
+
+          return {
+            'stream_url': webViewResult['stream_url'],
+            'duration': duration,
+            'title': '',
+            'artist': '',
+            'headers': {'User-Agent': webViewResult['user_agent']},
+          };
+        }
+      } catch (e) {
+        print("❌ Mobile WebView Fallback Failed: $e");
       }
     }
 
+    print("❌ All extraction methods failed for $videoId");
+    return null;
+  }
+
+  // Helper method for the backend logic to keep code clean
+  Future<Map<String, dynamic>?> _extractViaBackend(String videoId) async {
     // 2. Fallback or Mobile: Use Render Backend
     int retryCount = 0;
-    const int maxRetries = 2;
+    const int maxRetries = 1; // Lower retries since we have a fallback
 
     while (retryCount <= maxRetries) {
       try {
@@ -71,7 +130,7 @@ class YouTubeService {
         if (response.statusCode == 200) {
           final data = json.decode(response.body);
           if (data['stream_url'] != null) {
-            return data['stream_url'] as String;
+            return data; // Return full map
           }
           throw Exception(
             data['error'] ?? "Backend returned success but no URL",
@@ -82,9 +141,8 @@ class YouTubeService {
           final data = json.decode(response.body);
           String error = data['error'] ?? "";
           if (error.contains("Sign in to confirm you're not a bot")) {
-            throw Exception(
-              "YouTube blocked this request. Please Go to Settings -> Logout -> Login to YouTube again.",
-            );
+            // This is critical, but we can try fallback.
+            print("🛑 Identity verification required (Bot suspected).");
           }
           throw Exception(error);
         }
@@ -92,12 +150,10 @@ class YouTubeService {
         throw Exception("Server responded with status: ${response.statusCode}");
       } catch (e) {
         retryCount++;
-        print("Extraction attempt $retryCount failed for $videoId: $e");
-
-        if (retryCount > maxRetries) {
-          return null;
-        }
-        await Future.delayed(Duration(seconds: 2 * retryCount));
+        print("Backend attempt $retryCount failed: $e");
+        if (retryCount > maxRetries)
+          rethrow; // Pass error up to trigger fallback
+        await Future.delayed(Duration(seconds: 1));
       }
     }
     return null;
