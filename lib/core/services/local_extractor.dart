@@ -23,13 +23,13 @@ class LocalExtractor {
   Future<void> ensureBinaryExists() async {
     final path = await getBinaryPath();
     if (path == null) {
-      print('Downloading yt-dlp.exe...');
+      debugPrint('Downloading yt-dlp.exe...');
       final dir = await getApplicationSupportDirectory();
       final response = await http.get(Uri.parse(_ytdlpUrl));
       if (response.statusCode == 200) {
         final file = File('${dir.path}/yt-dlp.exe');
         await file.writeAsBytes(response.bodyBytes);
-        print('yt-dlp.exe downloaded to ${file.path}');
+        debugPrint('yt-dlp.exe downloaded to ${file.path}');
       }
     }
   }
@@ -43,7 +43,7 @@ class LocalExtractor {
     final finalPath = await getBinaryPath();
     if (finalPath == null) return null;
 
-    final cookieString = await YouTubeCookieService().getCookies();
+    final cookieString = await YoutubeCookieService().getCookieHeader();
 
     // yt-dlp prefers Netscape format, but can sometimes parse flat headers if formatted correctly
     // However, we can also just pass --add-header "Cookie: ..."

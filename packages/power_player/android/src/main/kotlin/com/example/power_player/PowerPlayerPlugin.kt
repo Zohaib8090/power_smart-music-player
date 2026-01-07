@@ -10,7 +10,9 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
@@ -59,18 +61,26 @@ class PowerPlayerPlugin : FlutterPlugin, MethodCallHandler {
             "initialize" -> {
                 if (!players.containsKey(playerId)) {
                     val entry = textureRegistry.createSurfaceTexture()
-                    val player = ExoPlayer.Builder(context).build()
+                    
+                    val renderersFactory = DefaultRenderersFactory(context)
+                        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+                    
+                    val player = ExoPlayer.Builder(context, renderersFactory).build()
+                    println("🎧 PowerPlayer $playerId Initialized")
                     
                     val audioAttributes = AudioAttributes.Builder()
                         .setUsage(C.USAGE_MEDIA)
                         .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                         .build()
                     player.setAudioAttributes(audioAttributes, true)
+                    player.volume = 1.0f
 
-                    player.setVideoSurface(Surface(entry.surfaceTexture()))
+                    // Only set surface if needed for video later, but don't let it block audio
+                    // player.setVideoSurface(Surface(entry.surfaceTexture()))
                     
                     player.addListener(object : Player.Listener {
                         override fun onPlayerError(error: PlaybackException) {
+                            println("🛑 PowerPlayer $playerId Error: ${error.message}")
                             sendEvent(playerId, "error", mapOf("message" to error.message, "errorCode" to error.errorCode))
                         }
                         
@@ -78,13 +88,16 @@ class PowerPlayerPlugin : FlutterPlugin, MethodCallHandler {
                             val stateStr = when(state) {
                                 Player.STATE_BUFFERING -> "buffering"
                                 Player.STATE_READY -> {
-                                    sendEvent(playerId, "duration", mapOf("duration" to player.duration))
+                                    val duration = if (player.duration > 0) player.duration else 0L
+                                    println("✅ PowerPlayer $playerId Ready - Duration: $duration")
+                                    sendEvent(playerId, "duration", mapOf("duration" to duration))
                                     "ready"
                                 }
                                 Player.STATE_ENDED -> "ended"
                                 Player.STATE_IDLE -> "idle"
                                 else -> "unknown"
                             }
+                            println("ℹ️ PowerPlayer $playerId State: $stateStr")
                             sendEvent(playerId, "state", mapOf("state" to stateStr))
                             
                             if (state == Player.STATE_READY) {
@@ -117,41 +130,54 @@ class PowerPlayerPlugin : FlutterPlugin, MethodCallHandler {
                 val headers = call.argument<Map<String, String>>("headers")
                 
                 val player = players[playerId] ?: return result.error("404", "Player not initialized", null)
+                println("🚀 PowerPlayer $playerId Loading Source: $url")
                 
                 val httpDataSourceFactory = DefaultHttpDataSource.Factory()
                 headers?.let { 
                     httpDataSourceFactory.setDefaultRequestProperties(it) 
                 }
                 
+                val dataSourceFactory = DefaultDataSource.Factory(context, httpDataSourceFactory)
                 val mediaSourceFactory = DefaultMediaSourceFactory(context)
-                    .setDataSourceFactory(httpDataSourceFactory)
+                    .setDataSourceFactory(dataSourceFactory)
                 
-                val mediaItem = MediaItem.fromUri(url)
-                val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
-                
-                player.setMediaSource(mediaSource)
-                player.prepare()
-                result.success(null)
+                try {
+                    val mediaItem = MediaItem.fromUri(android.net.Uri.parse(url))
+                    val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
+                    
+                    player.stop()
+                    player.setMediaSource(mediaSource)
+                    player.prepare()
+                    result.success(null)
+                } catch (e: Exception) {
+                    println("🛑 PowerPlayer $playerId Load Failed: ${e.message}")
+                    result.error("LOAD_FAILED", e.message, null)
+                }
             }
             "play" -> {
+                println("▶️ PowerPlayer $playerId Play")
                 players[playerId]?.play()
                 result.success(null)
             }
             "pause" -> {
+                println("⏸️ PowerPlayer $playerId Pause")
                 players[playerId]?.pause()
                 result.success(null)
             }
             "stop" -> {
+                println("⏹️ PowerPlayer $playerId Stop")
                 players[playerId]?.stop()
                 result.success(null)
             }
             "seek" -> {
                 val position = call.argument<Int>("position")?.toLong() ?: 0L
+                println("⏩ PowerPlayer $playerId Seek: $position")
                 players[playerId]?.seekTo(position)
                 result.success(null)
             }
             "setVolume" -> {
                 val volume = call.argument<Double>("volume")?.toFloat() ?: 1.0f
+                println("🔊 PowerPlayer $playerId Volume: $volume")
                 players[playerId]?.volume = volume
                 result.success(null)
             }

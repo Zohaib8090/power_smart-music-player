@@ -3,6 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:power_player/power_player.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:rxdart/rxdart.dart';
 import 'package:get_it/get_it.dart';
 import 'settings_service.dart';
@@ -32,6 +33,25 @@ class AudioPlayerHandler extends BaseAudioHandler
       !kIsWeb && (Platform.isWindows || Platform.isAndroid);
 
   AudioPlayerHandler() {
+    // Seed initial state to prevent copyWith errors
+    playbackState.add(
+      PlaybackState(
+        controls: [
+          MediaControl.skipToPrevious,
+          MediaControl.play,
+          MediaControl.stop,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.skipToNext,
+          MediaAction.skipToPrevious,
+        },
+        androidCompactActionIndices: const [0, 1, 3],
+        processingState: AudioProcessingState.idle,
+        playing: false,
+      ),
+    );
     _init();
     _listenToSettings();
   }
@@ -136,6 +156,11 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       // Sync PowerPlayer progress to audio_service
       _powerPlayer.positionStream.listen((pos) {
+        if (pos.inSeconds % 5 == 0) {
+          print(
+            "📬 PowerPlayer Position: ${pos.inSeconds}s / ${mediaItem.value?.duration?.inSeconds}s",
+          );
+        }
         playbackState.add(playbackState.value.copyWith(updatePosition: pos));
         _checkCrossfade(pos);
       });
@@ -345,12 +370,24 @@ class AudioPlayerHandler extends BaseAudioHandler
   Future<void> skipToQueueItem(int index) async {
     if (index < 0 || index >= queue.value.length) return;
     final item = queue.value[index];
-    playFromVideo(
-      videoId: item.id,
-      title: item.title,
-      artist: item.artist ?? "",
-      artUri: item.artUri?.toString(),
-    );
+
+    if (item.id.startsWith("local_")) {
+      await playFromLocalTrack({
+        'id': item.id.replaceFirst("local_", ""),
+        'title': item.title,
+        'artist': item.artist ?? "Unknown Artist",
+        'path': item.extras?['path'],
+        'uri': item.extras?['uri'],
+        'duration': item.duration?.inMilliseconds,
+      });
+    } else {
+      playFromVideo(
+        videoId: item.id,
+        title: item.title,
+        artist: item.artist ?? "",
+        artUri: item.artUri?.toString(),
+      );
+    }
   }
 
   int _getNextIndex() {
@@ -477,19 +514,70 @@ class AudioPlayerHandler extends BaseAudioHandler
       if (_currentLoadingVideoId != videoId) return;
 
       print("Error in background extraction: $e");
-      extractionStatus.add("Extraction failed: $e");
+      String errorMessage = e.toString();
+      if (e is PlatformException) {
+        errorMessage = "${e.code}: ${e.message}";
+      }
+
+      extractionStatus.add("Extraction failed: $errorMessage");
       Future.delayed(
-        const Duration(seconds: 3),
+        const Duration(seconds: 5),
         () => extractionStatus.add(null),
       );
 
       playbackState.add(
         playbackState.value.copyWith(
           processingState: AudioProcessingState.error,
-          errorMessage: "Extraction failed: $e",
+          errorMessage: "Extraction failed: $errorMessage",
         ),
       );
     }
+  }
+
+  Future<void> playFromLocalTrack(
+    Map<dynamic, dynamic> track, {
+    List<Map<dynamic, dynamic>>? allTracks,
+  }) async {
+    final path = track['path'] as String;
+    final uri = track['uri'] as String?;
+    final title = track['title'] as String;
+    final artist = track['artist'] as String;
+    final id = track['id'] as String;
+    final durationMs = track['duration'] as int?;
+
+    // Populate queue if list provided
+    if (allTracks != null) {
+      final newQueue = allTracks.map((t) {
+        final tId = t['id'] as String;
+        return MediaItem(
+          id: "local_$tId",
+          title: t['title'] as String,
+          artist: t['artist'] as String,
+          duration: t['duration'] != null
+              ? Duration(milliseconds: t['duration'] as int)
+              : null,
+          extras: {'path': t['path'], 'uri': t['uri']},
+        );
+      }).toList();
+      queue.add(newQueue);
+    }
+
+    // Use content URI if available, otherwise construct file URI
+    String urlToPlay = uri ?? path;
+    if (!urlToPlay.startsWith("content://") &&
+        !urlToPlay.startsWith("file://")) {
+      urlToPlay = Uri.file(urlToPlay).toString();
+    }
+
+    print("📂 Playing local track: $urlToPlay (Path: $path)");
+
+    await loadUrl(
+      urlToPlay,
+      id: "local_$id",
+      title: title,
+      artist: artist,
+      duration: durationMs != null ? Duration(milliseconds: durationMs) : null,
+    );
   }
 
   Future<void> loadUrl(
@@ -517,24 +605,28 @@ class AudioPlayerHandler extends BaseAudioHandler
 
       if (_usePowerPlayer) {
         // Use provided headers (from WebView) or fallback to Desktop UA
-        final effectiveHeaders =
-            headers ??
-            {
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Referer': 'https://www.youtube.com/',
-            };
+        Map<String, String>? effectiveHeaders = headers;
+
+        if (effectiveHeaders == null && !url.startsWith("file://")) {
+          effectiveHeaders = {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+          };
+        }
+
         // Print headers for debugging
         print("PowerPlayer setting source with headers: $effectiveHeaders");
         await _powerPlayer.setDataSource(url, headers: effectiveHeaders);
         await _powerPlayer.play();
       } else {
-        final effectiveHeaders =
-            headers ??
-            {
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            };
+        Map<String, String>? effectiveHeaders = headers;
+        if (effectiveHeaders == null && !url.startsWith("file://")) {
+          effectiveHeaders = {
+            'User-Agent':
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          };
+        }
         final source = AudioSource.uri(
           Uri.parse(url),
           headers: effectiveHeaders,

@@ -3,6 +3,7 @@ import 'package:get_it/get_it.dart';
 import 'services/auth_service.dart';
 import 'services/switchable_audio_handler.dart';
 import 'services/settings_service.dart';
+import 'services/local_audio_service.dart';
 
 final getIt = GetIt.instance;
 
@@ -21,6 +22,10 @@ void setupServiceLocator() {
   // Settings
   getIt.registerSingleton<SettingsService>(SettingsService());
   print('  ✅ Settings service registered');
+
+  // Local Music
+  getIt.registerLazySingleton<LocalAudioService>(() => LocalAudioService());
+  print('  ✅ Local audio service registered');
 }
 
 // Deprecated: No longer needed for UI but kept for compatibility

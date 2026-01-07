@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:get_it/get_it.dart';
 import 'playlist_details_page.dart';
 import '../../../home/presentation/pages/profile_page.dart';
 import '../../../../core/services/settings_service.dart';
-import 'package:get_it/get_it.dart';
 import 'dart:io';
+import '../../../../core/services/local_audio_service.dart';
+import 'package:audio_service/audio_service.dart';
 
 class LibraryPage extends StatefulWidget {
   const LibraryPage({super.key});
@@ -18,9 +20,23 @@ class _LibraryPageState extends State<LibraryPage> {
     'Artists',
     'Albums',
     'Downloaded',
+    'Local',
   ];
   String _selectedFilter = 'Playlists';
   bool _isGridView = false;
+  List<Map<dynamic, dynamic>> _localTracks = [];
+  bool _isLoadingLocal = false;
+
+  Future<void> _loadLocalMusic() async {
+    if (_localTracks.isNotEmpty) return;
+    setState(() => _isLoadingLocal = true);
+    final service = GetIt.I<LocalAudioService>();
+    final tracks = await service.getLocalTracks();
+    setState(() {
+      _localTracks = tracks;
+      _isLoadingLocal = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +153,9 @@ class _LibraryPageState extends State<LibraryPage> {
                 selected: isSelected,
                 onSelected: (selected) {
                   setState(() => _selectedFilter = filter);
+                  if (filter == 'Local') {
+                    _loadLocalMusic();
+                  }
                 },
                 backgroundColor: const Color(0xFF2A2A2A),
                 selectedColor: const Color(0xFF2A2A2A),
@@ -188,6 +207,9 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   Widget _buildLibraryItems() {
+    if (_selectedFilter == 'Local') {
+      return _buildLocalTracks();
+    }
     // Dummy Data
     final items = [
       {
@@ -367,6 +389,84 @@ class _LibraryPageState extends State<LibraryPage> {
           },
         );
       }, childCount: items.length),
+    );
+  }
+
+  Widget _buildLocalTracks() {
+    if (_isLoadingLocal) {
+      return const SliverFillRemaining(
+        child: Center(
+          child: CircularProgressIndicator(color: Color(0xFF1DB954)),
+        ),
+      );
+    }
+
+    if (_localTracks.isEmpty) {
+      return SliverFillRemaining(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.library_music, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text(
+              'No local music found',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _loadLocalMusic,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1DB954),
+              ),
+              child: const Text(
+                'Scan Device',
+                style: TextStyle(color: Colors.black),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SliverList(
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final track = _localTracks[index];
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2A2A),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Icon(Icons.music_note, color: Colors.grey),
+          ),
+          title: Text(
+            track['title'] ?? 'Unknown Title',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            track['artist'] ?? 'Unknown Artist',
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: const Icon(Icons.more_vert, color: Colors.grey),
+          onTap: () {
+            final dynamic handler = GetIt.I<AudioHandler>();
+            handler.playFromLocalTrack(track, allTracks: _localTracks);
+          },
+        );
+      }, childCount: _localTracks.length),
     );
   }
 }

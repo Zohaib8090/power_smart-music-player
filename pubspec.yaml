@@ -49,6 +49,8 @@ dependencies:
   shared_preferences: ^2.5.4
   hive: ^2.2.3
   hive_flutter: ^1.1.0
+  flutter_inappwebview: ^6.0.0
+  flutter_secure_storage: ^9.0.0
   cached_network_image: ^3.4.1
   glassmorphism_ui: ^0.3.0
   google_fonts: ^6.3.3
@@ -64,6 +66,8 @@ dependencies:
   process_run: ^1.1.0
   power_player:
     path: packages/power_player
+  local_audio:
+    path: packages/local_audio
 
 dev_dependencies:
   flutter_test:

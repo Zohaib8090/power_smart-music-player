@@ -48,4 +48,8 @@ class StubAudioHandler extends BaseAudioHandler {
       ),
     );
   }
+
+  Future<void> playFromLocalTrack(Map<dynamic, dynamic> track) async {
+    print('⚠️ playFromLocalTrack not available: ${track['title']}');
+  }
 }

@@ -22,9 +22,13 @@ class SwitchableAudioHandler extends BaseAudioHandler {
       print("✅ Real AudioService initialized and switched!");
 
       // Sync streams
-      _currentHandler.playbackState.listen(playbackState.add);
-      _currentHandler.mediaItem.listen(mediaItem.add);
-      _currentHandler.queue.listen(queue.add);
+      playbackState.add(realHandler.playbackState.value);
+      mediaItem.add(realHandler.mediaItem.value);
+      queue.add(realHandler.queue.value);
+
+      realHandler.playbackState.listen(playbackState.add);
+      realHandler.mediaItem.listen(mediaItem.add);
+      realHandler.queue.listen(queue.add);
 
       // Sync extraction status if it's the real handler
       if (realHandler is AudioPlayerHandler) {
@@ -105,6 +109,20 @@ class SwitchableAudioHandler extends BaseAudioHandler {
         artUri: artUri,
         newQueue: newQueue,
       );
+    }
+  }
+
+  Future<void> playFromLocalTrack(
+    Map<dynamic, dynamic> track, {
+    List<Map<dynamic, dynamic>>? allTracks,
+  }) async {
+    if (_currentHandler is AudioPlayerHandler) {
+      return (_currentHandler as AudioPlayerHandler).playFromLocalTrack(
+        track,
+        allTracks: allTracks,
+      );
+    } else if (_currentHandler is StubAudioHandler) {
+      return (_currentHandler as StubAudioHandler).playFromLocalTrack(track);
     }
   }
 }

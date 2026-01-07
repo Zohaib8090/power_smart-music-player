@@ -14,6 +14,7 @@ class SettingsService extends ChangeNotifier {
   static const String _sampleRateKey = 'audio_sample_rate';
   static const String _userNameKey = 'user_name';
   static const String _avatarPathKey = 'avatar_path';
+  static const String _extractionModeKey = 'extraction_mode';
 
   ThemeMode _themeMode = ThemeMode.system;
   bool _dvcEnabled = true;
@@ -27,6 +28,7 @@ class SettingsService extends ChangeNotifier {
   String _audioSampleRate = '44.1';
   String _userName = 'Zohaib';
   String _avatarPath = '';
+  ExtractionMode _extractionMode = ExtractionMode.native;
 
   ThemeMode get themeMode => _themeMode;
   bool get dvcEnabled => _dvcEnabled;
@@ -40,6 +42,7 @@ class SettingsService extends ChangeNotifier {
   String get audioSampleRate => _audioSampleRate;
   String get userName => _userName;
   String get avatarPath => _avatarPath;
+  ExtractionMode get extractionMode => _extractionMode;
 
   SettingsService() {
     _loadSettings();
@@ -52,6 +55,13 @@ class SettingsService extends ChangeNotifier {
     final themeIndex = prefs.getInt(_themeModeKey);
     if (themeIndex != null) {
       _themeMode = ThemeMode.values[themeIndex];
+    }
+
+    // Extraction Mode
+    final extractionIndex = prefs.getInt(_extractionModeKey);
+    if (extractionIndex != null &&
+        extractionIndex < ExtractionMode.values.length) {
+      _extractionMode = ExtractionMode.values[extractionIndex];
     }
 
     // Advanced Audio
@@ -78,6 +88,14 @@ class SettingsService extends ChangeNotifier {
     await prefs.setInt(_themeModeKey, mode.index);
   }
 
+  Future<void> setExtractionMode(ExtractionMode mode) async {
+    if (_extractionMode == mode) return;
+    _extractionMode = mode;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_extractionModeKey, mode.index);
+  }
+
   Future<void> setDvcEnabled(bool value) async {
     if (_dvcEnabled == value) return;
     _dvcEnabled = value;
@@ -85,6 +103,8 @@ class SettingsService extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_dvcKey, value);
   }
+
+  // ... (keeping other setters same)
 
   Future<void> setResamplerMode(String mode) async {
     if (_resamplerMode == mode) return;
@@ -166,3 +186,5 @@ class SettingsService extends ChangeNotifier {
     await prefs.setString(_avatarPathKey, path);
   }
 }
+
+enum ExtractionMode { native, backend, webview, newPipe }

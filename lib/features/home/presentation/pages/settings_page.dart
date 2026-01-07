@@ -12,7 +12,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  final youtubeCookies = YouTubeCookieService();
+  final youtubeCookies = YoutubeCookieService();
 
   @override
   Widget build(BuildContext context) {
@@ -107,9 +107,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 onChanged: (val) => settings.setGaplessPlayback(val),
               ),
               const Divider(),
+              _buildSectionHeader(context, 'Extraction Engine'),
+              ListTile(
+                leading: const Icon(Icons.build_circle_outlined),
+                title: const Text('Extraction Mode'),
+                subtitle: Text(_getExtractionModeName(settings.extractionMode)),
+                onTap: () => _showExtractionModeDialog(context, settings),
+              ),
+              const Divider(),
               _buildSectionHeader(context, 'YouTube Account'),
               FutureBuilder<bool>(
-                future: youtubeCookies.hasCookies(),
+                future: youtubeCookies.isAuthenticated(),
                 builder: (context, snapshot) {
                   final isLoggedIn = snapshot.data ?? false;
                   return ListTile(
@@ -131,7 +139,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             final result = await Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => const YouTubeLoginPage(),
+                                builder: (context) => const YoutubeLoginPage(),
                               ),
                             );
                             if (result == true) {
@@ -295,7 +303,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _showLogoutDialog(
     BuildContext context,
-    YouTubeCookieService youtubeCookies,
+    YoutubeCookieService youtubeCookies,
   ) {
     showDialog(
       context: context,
@@ -367,6 +375,47 @@ class _SettingsPageState extends State<SettingsPage> {
               onChanged: (value) {
                 if (value != null) {
                   settings.setAudioSampleRate(value);
+                  Navigator.pop(context);
+                }
+              },
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  String _getExtractionModeName(ExtractionMode mode) {
+    switch (mode) {
+      case ExtractionMode.native:
+        return 'Native (YouTube Explode)';
+      case ExtractionMode.backend:
+        return 'Python Backend';
+      case ExtractionMode.webview:
+        return 'WebView Fallback';
+      case ExtractionMode.newPipe:
+        return 'NewPipe (Android)';
+    }
+  }
+
+  void _showExtractionModeDialog(
+    BuildContext context,
+    SettingsService settings,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Extraction Mode'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: ExtractionMode.values.map((mode) {
+            return RadioListTile<ExtractionMode>(
+              title: Text(_getExtractionModeName(mode)),
+              value: mode,
+              groupValue: settings.extractionMode,
+              onChanged: (value) {
+                if (value != null) {
+                  settings.setExtractionMode(value);
                   Navigator.pop(context);
                 }
               },

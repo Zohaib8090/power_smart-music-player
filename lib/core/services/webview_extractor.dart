@@ -28,7 +28,8 @@ class WebViewExtractor {
             print("WebViewExtractor error: ${error.description}");
           },
         ),
-      );
+      )
+      ..loadRequest(Uri.parse('https://www.youtube.com'));
     _isInitialized = true;
   }
 
